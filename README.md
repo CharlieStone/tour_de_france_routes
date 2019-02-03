@@ -22,10 +22,10 @@ Data was scraped from the stage table from the Wikipedia article for each year o
 ## Packages used
 |  Task|  Packages|
 |--:|--:|
-|  Web scraping|  rvest and xml2|
+|  Web scraping|  rvest, xml2|
 |  Data wrangling|  dplyr, tidyr, purrr, lubridate|
 |  Accessing geonames api| geonames|
 |  Reading and writing files| readr|
 |  Calculating distances from GPS| geosphere|
 |  Plotting| ggplot2, plotly|
-|  Plotting maps| maps mapproj|
+|  Plotting maps| maps, mapproj|
