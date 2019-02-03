@@ -1,0 +1,1074 @@
+---
+title: "Stage type data"
+output: html_notebook
+---
+
+# SETUP
+Load libraries.
+```{r setup}
+library(tidyverse)
+library(rvest)
+library(lubridate)
+library(geosphere)
+library(geonames)
+library(maps)
+library(mapproj)
+library(XML)
+library(methods)
+```
+
+# SCRAPE
+Create vector of the Tour de FRnce wikipedia URLs from [wikipedia](https://en.wikipedia.org/wiki/2005_Tour_de_France) site (link is for 2005 as an example).
+```{r url_list}
+years <- seq(1903, 2019, 1)
+url_base <- "https://en.wikipedia.org/wiki/"
+url_end <- "_Tour_de_France"
+urls <- years %>%
+  paste0(url_base, . , url_end)
+
+data_init <- tibble(year = years, url_path = urls)
+
+data_init
+urls[1:20]
+```
+
+Define function to scrape and clean Tour de FRnce data from one URL.
+```{r scrape_clean}
+scrape_wiki <- function(url, table_n = 2){
+  
+  xpath_start <- '//*[@id="mw-content-text"]/div/table['
+  xpath_end <-']'
+  xpath_full <- paste0(xpath_start, table_n, xpath_end)
+  
+xml <- url %>%
+  read_html() %>%
+  html_nodes(xpath = xpath_full) %>%
+  html_table(fill = TRUE)
+
+xml[[1]]
+}
+```
+
+Scrape data for every year.
+```{r scrape}
+data <- data_init %>%
+  mutate(year_data = purrr::map(url_path, possibly(scrape_wiki, "no data")))
+
+data
+```
+
+Manual corrections to xpath for 1905 and 1907 as bringing in incorrect table. Looked on wikipedia pages to find xpaths for these. Difference that not 2nd table on page, 3rd table for 1905 and 4th for 1907.
+
+```{r 1905_07_correct}
+data$year_data[[3]] <- scrape_wiki(data$url_path[[3]], table_n = 3)
+data$year_data[[5]] <- scrape_wiki(data$url_path[[5]], table_n = 4)
+```
+
+Filter out datasets with no data (due to world wars).
+
+```{r filter_no_data}
+has_data <- function(ls){
+  !has_element(ls, "no data")
+}
+
+data <- data %>%
+  mutate(data_exists = map_lgl(year_data, has_data)) %>%
+  filter(data_exists) %>%
+  select(-data_exists)
+```
+
+Write function to clean each dataset into the same shape with same column headings.  Apply this to every dataset.
+
+```{r clean_wiki}
+clean_wiki <- function(df) {
+  df <- df %>% 
+    setNames(make.names(names(.), unique = TRUE)) %>%
+    select(1:4, 6:7)
+  
+  names(df) <- c("stage", "date", "course", "distance_km", "terrain", "winner")
+  
+  df
+}
+
+data <- data %>%
+  mutate(year_data = purrr::map(year_data, clean_wiki))
+```
+
+Combine datasets for different years together.
+```{r combine_years}
+char_stage <- function(df){
+  df %>% mutate(stage = as.character(stage))
+}
+
+data <- data %>%
+  mutate(year_data = purrr::map(year_data, char_stage)) %>%
+  select(year, year_data) %>%
+  unnest()
+```
+
+Separate the columns of each dataset where neccessary.
+
+```{r clean_columns}
+data_sep <- data %>%
+  filter(date != "Total") %>%
+  separate(date, into = c("day", "month"), sep = " ") %>%
+  separate(course, into = c("start", "end"), sep = " to ") %>%
+  separate(distance_km,
+           into = c("distance_km", "dist_rm"),
+           sep = "km") %>%
+  separate(winner, into = c("winner_name", "winner_country"), sep = "\\(") %>%
+  select(-dist_rm)
+```
+
+Combine year, month and day into one date field.
+```{r clean_date}
+data_sep <- data_sep %>%
+  mutate(date = paste0(year, month, day),
+         date = parse_date(date, format = "%Y%B%d"))
+
+# Filter any errors
+filter(data_sep, is.na(date))
+
+# Error in 1938, month is blank for one of the rest days - should be July.
+filter(data_sep, year == 1938)
+
+# Correction to set month to prev stage month if error
+data_sep <- data_sep %>%
+  mutate(month = if_else((month %in% month.name), month, lag(month)))
+
+# Rerun date parsing and check for errors
+data_sep <- data_sep %>%
+  mutate(date = paste0(year, month, day),
+         date = parse_date(date, format = "%Y%B%d"))
+
+filter(data_sep, is.na(date))
+
+# Show any rows where dates are not in order expected given row position.  These are due to incorrect dates for rest days.
+data_sep %>%
+  group_by(year) %>%
+  mutate(not_after_prev = (date < lag(date)),
+         not_before_next = (date > lead(date))) %>%
+  filter(not_after_prev | not_before_next)
+
+# Correct rest day dates manually as there is not a systematic reason they are incorrect (2005 rest day is out by 5 days and in wrong place).
+data_sep <- data_sep %>%
+  mutate(date = if_else(((year == 1936) & (day == "14") & (month == "July") & (start == "Luchon") & (terrain == "Rest day")), make_date(year = 1936, month = 7, day = 26L), date),
+         date = if_else(((year == 1937) & (day == "22") & (month == "July") & (start == "Pau") & (terrain == "Rest day")), make_date(year = 1937, month = 7, day = 20L), date),
+         date = if_else(((year == 1950) & (day == "22") & (month == "July") & (start == "Pau") & (terrain == "Rest day")), make_date(year = 1950, month = 7, day = 24L), date),
+         date = if_else(((year == 2005) & (day == "13") & (month == "July") & (start == "Pau") & (terrain == "Rest day")), make_date(year = 2005, month = 7, day = 18L), date),
+         start = if_else(((year == 2005) & (day == "13") & (month == "July") & (start == "Pau") & (terrain == "Rest day")), "Mourenx", start))
+
+filter(data_sep, is.na(date))
+```
+
+Clean rest day rows. There are rows for rest days, these have NA for 'end' because the Tour didn't go anywhere on these days.
+```{r clean_rest_day}
+# Clean rest day rows
+data_rest <- data_sep %>%
+  filter(terrain == "Rest day") %>%
+  mutate(end = start, distance_km = "0", winner_name = NA, winner_country = NA, stage = NA)
+
+data_sep <- data_sep %>%
+  filter(terrain != "Rest day") %>%
+  bind_rows(data_rest)
+```
+
+Clean stage field. Create separate stage_number and sub_stage fields. Create stage_id to uniquely define each row.
+```{r clean_stage}
+unique(data_sep$stage)
+
+# Create counter for number of rest days to construt unique stage_id for each row.
+data_sep <- data_sep %>%
+  mutate(rest_day = if_else(terrain == "Rest day", 1, 0)) %>%
+  group_by(year) %>%
+  mutate(rest_n = cumsum(rest_day),
+         rest_n = paste("r_", rest_n)) %>%
+  ungroup()
+  
+
+# Separate stage fields
+data_sep <- data_sep %>%
+  mutate(stage_id = if_else(terrain == "Rest day", paste(year, rest_n, sep = "_"), paste(year, stage, sep = "_")),
+         stage_number = as.integer(str_extract(stage, "\\d+")),
+         sub_stage = if_else(stage == "P", "P", str_extract(stage, "[a-z]")),
+         sub_stage = if_else((!is.na(stage) & is.na(sub_stage)), "main", sub_stage),
+         stage_number = if_else(sub_stage == "P", 0L, stage_number)
+  ) %>%
+  select(-rest_day, -rest_n)
+
+unique(data_sep$stage_number)
+unique(data_sep$sub_stage)
+
+filter(data_sep, is.na(stage_number) & terrain != "Rest day")
+
+```
+
+Clean start and end locations.  First see which locations are NA for end.  Most of these are short time trial stages, so it makes sense that they have NA end location, as end location will be same as start.  Set end location to start location if terrain contains "time".
+
+For the remaining stages that have no end location, review each on the Tour de FRnce website and see if any shouldn't be set to start location.  This is ok for all of the stages apart from 2007 stage 3 and 2013 stage 9 which have two locations in the 'start' column, as the locations are not separated by " to " but by dashes. Set end to start for all and then adjust these two manually.
+
+Split start and end location into start_place, start_country, end_place, end_country.  This information is recorded in the location as (country) after place name if the place is not in FRnce.  The country information will help with geocoding.
+
+```{r clean_location}
+# Tidy end locations with NA
+data_sep %>% filter((is.na(start) | is.na(end)))
+
+data_sep <- data_sep %>%
+  mutate(end = if_else((is.na(end) & str_detect(terrain, "time")), start, end))
+
+data_sep %>% filter((is.na(start) | is.na(end)))
+
+data_sep <- data_sep %>%
+  mutate(end = if_else(is.na(end), start, end),
+         start = if_else((year == 2007) & (stage == "3") & (day == "10"), "Waregem (Belgium)", start),
+         end = if_else((year == 2007) & (stage == "3") & (day == "10"), "Compiègne", end),
+         start = if_else((year == 2013) & (stage == "9") & (day == "7"), "Saint-Girons", start),
+         end = if_else((year == 2013) & (stage == "9") & (day == "7"), "Bagnères-de-Bigorre", end))
+
+data_sep %>% filter((is.na(start) | is.na(end)))
+
+# Separate location into place and country
+data_sep <- data_sep %>%
+  separate(start, into = c("start_place", "start_country"), sep = "\\(") %>%
+  separate(end, into = c("end_place", "end_country"), sep = "\\(") %>%
+  mutate(start_place = trimws(start_place),
+         start_country = trimws(start_country),
+         end_place = trimws(end_place),
+         end_country = trimws(end_country)
+         )
+
+data_sep <- data_sep %>%
+  mutate(start_country = trimws(str_remove(start_country, "[[:punct:]]")),
+         end_country = trimws(str_remove(end_country, "[[:punct:]]")))
+
+unique(c(data_sep$start_country, data_sep$end_country))
+
+data_sep <- data_sep %>%
+  mutate(
+    start_country = case_when(
+      is.na(start_country) ~ "FR",
+      start_country == "ChampsÉlysées" ~ "FR",
+      start_country == "Eiffel Tower 10" ~ "FR",
+      start_country == "SainteMariedu-Mont)" ~ "FR",
+      start_country == "Mont Ventouxn 1]" ~ "FR",
+      start_country == "Parc des Oiseaux" ~ "FR",
+      start_country == "Col de Portet" ~ "FR",
+      start_country == "Belgium" ~ "BE",
+      start_country == "Luxembourg" ~ "LU",
+      start_country == "Italy" ~ "IT",
+      start_country == "Netherlands" ~ "NL",
+      start_country == "Switzerland" ~ "CH",
+      start_country == "Spain" ~ "ES",
+      start_country == "Spain " ~ "ES",
+      start_country == "United Kingdom" ~ "GB",
+      start_country == "Ireland" ~ "IE",
+      start_country == "Germany" ~ "DE",
+      start_country == "West Germany" ~ "DE",
+      start_country == "Andorra" ~ "AD",
+      start_place == "Paris" ~ "FR",
+      start_place == "Chalet Reynard" ~ "FR",
+      start_place == "Utah Beach" ~ "FR"
+    ),
+    end_country = case_when(
+      is.na(end_country) ~ "FR",
+      end_country == "ChampsÉlysées" ~ "FR",
+      end_country == "Eiffel Tower 10" ~ "FR",
+      end_country == "SainteMariedu-Mont)" ~ "FR",
+      end_country == "Mont Ventouxn 1]" ~ "FR",
+      end_country == "Parc des Oiseaux" ~ "FR",
+      end_country == "Col de Portet" ~ "FR",
+      end_country == "Belgium" ~ "BE",
+      end_country == "Luxembourg" ~ "LU",
+      end_country == "Italy" ~ "IT",
+      end_country == "Netherlands" ~ "NL",
+      end_country == "Switzerland" ~ "CH",
+      end_country == "Spain" ~ "ES",
+      end_country == "Spain " ~ "ES",
+      end_country == "United Kingdom" ~ "GB",
+      end_country == "Ireland" ~ "IE",
+      end_country == "Germany" ~ "DE",
+      end_country == "West Germany" ~ "DE",
+      end_country == "Andorra" ~ "AD",
+      end_place == "Paris" ~ "FR",
+      end_place == "Chalet Reynard" ~ "FR",
+      end_place == "Utah Beach" ~ "FR"
+    )
+  )
+
+unique(c(data_sep$start_country, data_sep$end_country))
+
+# Check for country NA values and correct where needed
+data_sep %>%
+  filter(is.na(start_country), is.na(end_country))
+
+# Remove [n 1] and [n 2] fron place names (wikipedia notes)
+sort(unique(c(data_sep$start_place, data_sep$end_place)))
+
+data_sep <- data_sep %>%
+  mutate(start_place = trimws(str_remove(start_place, "\\[.+\\]")),
+         end_place = trimws(str_remove(end_place, "\\[.+\\]")))
+
+```
+
+Clean winner name and winner country.  Winner name ok apart from 2018 stage 14 where there is NA.  Found value online and corrected.  
+For winner country, take first 3 letters.  Checked unexpected NAs, due to team winning rather than one country, so it makes sense that no winner country for these stages.
+```{r clean_winner}
+# Winner name
+unique(data_sep$winner_name)
+
+filter(data_sep, is.na(winner_name), terrain != "Rest day", year != 2019)
+
+data_sep <- data_sep %>%
+  mutate(winner_name = if_else(((year == 2018) & (stage == "14") & (day == "21")), "Bernard Quilfen", winner_name),
+         winner_country = if_else(((year == 2018) & (stage == "14") & (day == "21")), "FR", winner_country))
+
+filter(data_sep, is.na(winner_name), terrain != "Rest day", year != 2019)
+
+# Winner country
+unique(data_sep$winner_country)
+
+data_sep <- data_sep %>%
+  mutate(winner_country = substr(winner_country, start = 1, stop = 3))
+
+unique(data_sep$winner_country)
+
+# Remove any white space
+data_sep <- data_sep %>%
+  mutate(winner_name = trimws(winner_name),
+         winner_country = trimws(winner_country))
+
+# Check whether any NA winners apart for 2019 and rest days.
+filter(data_sep, is.na(winner_country), terrain != "Rest day", year != 2019)
+```
+
+Clean terrain variable.
+```{r clean_terrain}
+unique(data_sep$terrain)
+
+data_sep <- data_sep %>%
+  mutate(terrain = case_when(
+    terrain == "Plain stage" ~ "Plain",
+    terrain == "Stage with mountain(s)" ~ "With mountain",
+    terrain == "Stage with mountain" ~ "With mountain",
+    terrain == "Medium mountain stage[n 3]" ~ "Medium mountain stage",
+    terrain == "Medium mountain stage[n 5]" ~ "Medium mountain stage",
+    terrain == "Flat stage[n 3]" ~ "Flat stage",
+    terrain == "Flat stage[n 4]" ~ "Flat stage",
+    terrain == "Mountain Stage" ~ "Mountain",
+    terrain == "Mountain stage" ~ "Mountain",
+    terrain == "Flat stage[n 4]" ~ "Flat stage",
+    TRUE ~ terrain
+  ))
+
+# Summarise the number of stages recorded as different terrains
+data_sep %>% 
+  group_by(terrain) %>%
+  summarise(n = n()) %>%
+  arrange(-n)
+
+# Create new terrain field to aggregate terrains together
+data_sep <- data_sep %>%
+  mutate(terrain_group = case_when(
+    terrain == "Plain" ~ "Flat",
+    terrain == "Flat stage" ~ "Flat",
+    terrain == "Flat Stage" ~ "Flat",
+    terrain == "Half Stage" ~ "Flat",
+    terrain == "Transition stage" ~ "Flat",
+    terrain == "Flat" ~ "Flat",
+    terrain == "Intermediate stage" ~ "Flat",
+    terrain == "Flat cobblestone stage" ~ "Flat",
+    terrain == "Plain stage with cobblestones" ~ "Flat",
+    terrain == "Medium mountain stage" ~ "Hilly",
+    terrain == "Hilly stage" ~ "Hilly",
+    terrain == "With mountain" ~ "Mountain",
+    terrain == "Mountain" ~ "Mountain",
+    terrain == "High mountain stage" ~ "Mountain",
+    terrain == "High mountain stage" ~ "Mountain",
+    terrain == "High mountain stage" ~ "Mountain",
+    terrain == "High mountain stage" ~ "Mountain",
+    TRUE ~ terrain
+  ))
+
+# Summarise the number of stages recorded as different terrain groups
+data_sep %>% 
+  group_by(terrain_group) %>%
+  summarise(n = n()) %>%
+  arrange(-n)
+```
+
+Parse distance as double and check distribution of distances.
+```{r parse_distance}
+# Parse distance
+data_sep <- data_sep %>%
+  mutate(distance_km = as.numeric(distance_km))
+
+# Check distribution of distances
+data_sep %>%
+  ggplot(aes(distance_km)) +
+  geom_histogram() +
+  facet_wrap(~ terrain_group)
+```
+
+Remove redundant variables and ensure parsing of each column is correct.
+```{r tidy}
+data_sep <- data_sep %>%
+  select(
+    stage_id,
+    date,
+    stage_number,
+    sub_stage,
+    start_place,
+    start_country,
+    end_place,
+    end_country,
+    distance_km,
+    terrain,
+    terrain_group,
+    winner_name,
+    winner_country
+  )
+
+tour_data <- data_sep
+
+tour_data
+```
+
+Use geonames open source api to geocode each location.
+```{r gps_search}
+# Set options for geonames. Need to set host to be api.geonames.org as geonames package default is ws.geonames.org and all addresses have been changed by geonames to api.geonames.org instead of ws.geonames.org and the R geonaes package hasn't ben updated for this.
+options(geonamesUsername="sancy8") 
+options(geonamesHost="api.geonames.org")
+
+# Define function to extract latitude and longitude from top search result from geonames api with bias towards country as recorded in Tour de France data.  Use GNsearch first.
+get_gps_gnsearch <- function(place, country) {
+  res <-
+    GNsearch(
+      name = place,
+      maxRows = 1,
+      country_bias = country,
+      continentCode = "EU"
+    ) %>%
+    select(lat, lng, name, geonameId, population) %>%
+    transmute(lng = as.double(lng), lat = as.double(lat), name = as.character(name), gn_id = as.character(geonameId), population = as.double(population))
+  return(res)
+}
+
+# Get latitude and longitude coordinates for the unique locations in the Tour de France data.
+loc_gps_end <- tour_data %>%
+  select(starts_with("end_")) %>%
+  distinct() %>%
+  rename(place = "end_place", country = "end_country")
+
+loc_gps_1 <- tour_data %>%
+  select(starts_with("start_")) %>%
+  distinct() %>%
+  rename(place = "start_place", country = "start_country") %>%
+  bind_rows(loc_gps_end) %>%
+  distinct()
+
+loc_gps_1 <- loc_gps_1 %>%
+  mutate(gps = purrr::map2(place, country, possibly(get_gps_gnsearch, "error")))
+
+# Number of locations which failed to match
+loc_gps_1 %>%
+  filter(gps == "error")
+
+# Number of locations which failed to match
+wiki_gps <- loc_gps_1 %>%
+  filter(gps == "error")
+
+# Pluck out values from geonames gps tibble for those that have matched.
+loc_gps <- loc_gps_1 %>%
+  filter(gps != "error") %>%
+  mutate(lat = unlist(pluck(gps, "lat")),
+         long = unlist(pluck(gps, "lng")),
+         geoname = unlist(pluck(gps, "name")),
+         geoname_id = unlist(pluck(gps, "gn_id")),
+         population = unlist(pluck(gps, "population"))) %>%
+  select(-gps)
+```
+
+Attempt to match remaining places using a Wikipedia search
+```{r gps_wiki_search}
+# As above, but use GNwikisearch
+get_gps_wikisearch <- function(place) {
+  res <-
+    GNwikipediaSearch(
+      q = place,
+      maxRows = 1
+    ) 
+  return(res)
+}
+
+wiki_gps <- wiki_gps %>%
+  mutate(gps = purrr::map(place, possibly(get_gps_wikisearch, "error")))
+
+# Extract lat, long and name values for each place.
+tidy_wiki <- function(df){
+  df %>%
+    as_tibble()%>%
+    select(lat, lng, title) %>%
+    transmute(lng = as.double(lng), lat = as.double(lat), name = as.character(title), gn_id = "na_wiki", population = NA_real_)
+}
+
+wiki_gps <- wiki_gps %>%
+  mutate(gps = purrr::map(gps, possibly(tidy_wiki, "error")))
+
+manual_gps <- wiki_gps %>%
+  filter(gps == "error")
+
+wiki_gps <- wiki_gps %>%
+  filter(gps != "error") %>%
+  mutate(lat = unlist(pluck(gps, "lat")),
+         long = unlist(pluck(gps, "lng")),
+         geoname = unlist(pluck(gps, "name")),
+         geoname_id = unlist(pluck(gps, "gn_id")),
+         population = unlist(pluck(gps, "population"))) %>%
+  select(-gps)
+```
+
+Manually edit those which are still not matching.
+```{r manual_location}
+manual_gps
+
+manual_gps <- manual_gps %>%
+  mutate(place_adj = case_when(
+    place == "Circuit de la Prairie, Caen" ~ "Caen",
+    place == "Domaine du Rouret" ~ "Grospierres",
+    place == "Maubourguet Pays du Val d’Adour" ~ "Maubourguet",
+    place == "Belfort/Ballon d’Alsace" ~ "Belfort",
+    place == "Ballon d’Alsace" ~ "Belfort",
+    place == "Arenberg Porte du Hainaut" ~ "Wallers",
+    place == "Gérardmer La Mauselaine" ~ "Gérardmer",
+    place == "Saint-Lary Pla d’Adet" ~ "Saint-Lary",
+    place == "La Caverne du Pont-d'Arc" ~ "Vallon-Pont-d'Arc",
+  ))
+
+manual_gps <- manual_gps %>%
+  mutate(gps = purrr::map(place_adj, possibly(get_gps_gnsearch, "error"), country = "FR"))
+
+# Check no errors
+manual_gps %>%
+  filter(gps == "error")
+
+# Extract GPS coordinates
+manual_gps <- manual_gps %>%
+  filter(gps != "error") %>%
+  mutate(lat = unlist(pluck(gps, "lat")),
+         long = unlist(pluck(gps, "lng")),
+         geoname = unlist(pluck(gps, "name")),
+         geoname_id = unlist(pluck(gps, "gn_id")),
+         population = unlist(pluck(gps, "population"))) %>%
+  select(-gps, -place_adj)
+```
+
+
+Combine GPS coordinates from loc_gps, wiki_gps, manual_gps.
+```{r combine_gps}
+# Combine GPS coordinates
+loc_gps <- loc_gps %>%
+  bind_rows(wiki_gps, manual_gps) 
+
+# Check for any NA values in place to long
+loc_gps %>%
+  filter(is.na(place) | is.na(country) | is.na(lat) | is.na(long))
+
+# Correct NA values
+loc_gps <- loc_gps %>%
+  mutate(country = case_when(
+    place == "Paris" ~ "FR",
+    place == "Utah Beach" ~ "FR",
+    place == "Chalet Reynard" ~ "FR",
+    TRUE ~ country
+  ))
+
+# Check for any NA values in place to long following corrections
+loc_gps %>%
+  filter(is.na(place) | is.na(country) | is.na(lat) | is.na(long))
+```
+
+Map locations to see if any coordinates that are obviously wrong.  There are a few that are obviously wrong.
+```{r map_gps}
+world_map <- map_data(map = "world")
+
+countries <-
+  c("Austria",
+    "Belgium",
+    "France",
+    "Germany",
+    "Ireland",
+    "Italy",
+    "Luxembourg",
+    "Netherlands",
+    "Spain",
+    "Switzerland",
+    "UK")
+
+borders_map <- map_data(map = "world", region = countries)
+
+borders_plot <- ggplot() +
+  geom_polygon(data = borders_map, aes(x = long, y = lat, group = group), fill = "#FEED00", colour = "#FDFEFE") +
+  coord_map() +
+  theme_void() +
+  geom_point(data = loc_gps, aes(x = long, y = lat), size = 0.25, colour = "black")
+
+borders_plot
+```
+
+Filter out those outside of GPS boundary enclosing most of the other points.
+```{r map_outliers}
+# Identify incorrect GPS coordinates
+gps_error <- loc_gps %>%
+  filter(long < -9 | long > 14 | lat < 40| lat > 55)
+
+gps_error
+
+# Remove observations in wiki_error from loc_gps
+loc_gps <- loc_gps %>%
+  anti_join(gps_error, by = "place")
+
+# place_adj and country_adj entered manually by searching place and Tour de France on google and finding nearest location with result on geonames.
+gps_error <- gps_error %>%
+  mutate(place_adj = case_when(
+    place == "Mont des Alouettes" ~ "Les Herbiers",
+    place == "La Pierre Saint-Martin" ~ "Accous",
+    TRUE ~ place
+  ),
+  country_adj = case_when(
+    place == "Pal" ~ "AD",
+    TRUE ~ country
+  )
+  ) %>%
+  select(place, country, place_adj, country_adj)
+
+# Pull gps data from geonames forcing country to be country == country_adj
+get_gps_gnsearch_strict <- function(place, country) {
+  res <-
+    GNsearch(
+      name = place,
+      maxRows = 1,
+      country = country
+    ) %>%
+    select(lat, lng, name, geonameId, population) %>%
+    transmute(lng = as.double(lng), lat = as.double(lat), name = as.character(name), gn_id = as.character(geonameId), population = as.double(population))
+  return(res)
+}
+
+gps_error <- gps_error %>%
+  mutate(gps = purrr::map2(place_adj, country_adj, possibly(get_gps_gnsearch_strict, "error")))
+
+# Check no errors
+gps_error %>%
+  filter(gps == "error")
+
+# Extract GPS coordinates
+gps_error <- gps_error %>%
+  filter(gps != "error") %>%
+  mutate(lat = unlist(pluck(gps, "lat")),
+         long = unlist(pluck(gps, "lng")),
+         geoname = unlist(pluck(gps, "name")),
+         geoname_id = unlist(pluck(gps, "gn_id")),
+         population = unlist(pluck(gps, "population"))) %>%
+  select(-gps, -place_adj, -country_adj)
+
+# Add locations back to loc_gps
+loc_gps <- loc_gps %>%
+  bind_rows(gps_error)
+
+# Replot locations on map
+borders_plot <- ggplot() +
+  geom_polygon(data = borders_map, aes(x = long, y = lat, group = group), fill = "#FEED00", colour = "#FDFEFE") +
+  coord_map() +
+  theme_void() +
+  geom_point(data = loc_gps, aes(x = long, y = lat), size = 0.25, colour = "black")
+
+borders_plot
+```
+
+Add geocoding data to tour data.
+```{r add_gps_tour}
+loc_gps_coord <- loc_gps %>%
+  select(place:long, geoname_id)
+
+# Add stage start GPS coordinates
+tour_data <- tour_data %>%
+  rename(place = "start_place", country = "start_country") %>%
+  left_join(loc_gps_coord, by = c("place", "country")) %>%
+  rename(start_place = "place", start_country = "country", start_lat = "lat", start_long = "long", start_gnid = "geoname_id")
+
+# Add stage end GPS coordinates
+tour_data <- tour_data %>%
+  rename(place = "end_place", country = "end_country") %>%
+  left_join(loc_gps_coord, by = c("place", "country")) %>%
+  rename(end_place = "place", end_country = "country", end_lat = "lat", end_long = "long", end_gnid = "geoname_id")
+
+# Check for any which didn't match
+tour_data %>%
+  filter(is.na(start_lat) | is.na(start_long) | is.na(end_lat) | is.na(end_long))
+```
+
+Calculate distance as crow flies between start and end location and check not more than 40km higher than distance_km (rationale for 40km is that this would show up on a map).
+
+First **define function** to calculate distance between input latitude and longitude (from [here](https://blog.exploratory.io/calculating-distances-between-two-geo-coded-locations-358e65fcafae), but adapted to work with mutate rather than the exploratory package, ie return a vector of distances rather than one number). Distance is returned in metres.
+```{r dist_func}
+get_geo_distance = function(long1, lat1, long2, lat2) {
+  loadNamespace("purrr")
+  loadNamespace("geosphere")
+  longlat1 = purrr::map2(long1, lat1, function(x,y) c(x,y))
+  longlat2 = purrr::map2(long2, lat2, function(x,y) c(x,y))
+  distance = purrr::map2(longlat1, longlat2, function(x,y) geosphere::distHaversine(x, y))
+  
+  unlist(distance)
+}
+```
+
+Now use this function to calculate distance in km between start and end location.
+```{r check_dist}
+# Calculate distance between start and end of stage. 
+tour_data <- tour_data %>%
+  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+
+# Filter stages which have difference between start and end location 40km more than distance_km.  Use 40km rather than 0 or 10km as smaller distance could give errors due to difference between geoname GPS coord for city (eg Paris), and distane actually cycled (eg if started on outkirts, but gps coord is in middle).
+dist_error <- tour_data %>%
+  mutate(dist_diff = dist_start_end - distance_km) %>%
+  filter(dist_diff > 40)
+
+# Summarise frequency of places in dist_error and frequency in all tour stages to identify locations which are incorrectly geocoded, ie those for which majority of stages have dist_error.  Exclude stages which start and end in the same place from frequency of all tour stages (otherwise these will lower the error rate, but obviously will have dist_start_end = 0km < distance_km).
+
+place_freq <- tour_data %>%
+  select(start_place, end_place) %>%
+  filter(start_place != end_place) %>%
+  gather(key = "position", value = "place") %>%
+  group_by(place) %>%
+  summarise(n_all = n()) %>%
+  arrange(-n_all)
+
+dist_error_summary <- dist_error %>%
+  select(start_place, end_place) %>%
+  gather(key = "position", value = "place") %>%
+  group_by(place) %>%
+  summarise(n_error = n()) %>%
+  arrange(-n_error) %>%
+  left_join(place_freq, by = "place") %>%
+  mutate(pct_error = n_error / n_all)
+
+# Plot distribution of pct_error
+ggplot(dist_error_summary, aes(pct_error, n_error)) +
+  geom_point()
+
+# Choose to assign geonameid manually for those with error rate > 0.3
+dist_error_gps <- dist_error_summary %>%
+  filter(pct_error > 0.3, n_error > 1) %>%
+  select(place)
+```
+
+Correct loc_gps entries for locations identified above, again use google search and wikipedia entries and check using place_adj and end_adj on geonames gives correct place, then take geonames id for this location.
+```{r correct_dist_error_n_all>1}
+# Remove errors from loc_gps
+loc_gps <- loc_gps %>%
+  anti_join(dist_error_gps, by = "place")
+
+# Assign geoname id to errors
+dist_error_gps <- dist_error_gps %>%
+  mutate(geonameid = case_when(
+    place == "Revel" ~ "2983833",
+    place == "Vire" ~ "2967972",
+    place == "Forest" ~ "2798139",
+    place == "Saintes" ~ "2980340",
+    place == "Bonneval" ~ "3031702",
+    place == "La Grande-Motte" ~ "3008981",	
+    place == "La Plagne" ~ "6544536",	
+    place == "Langon" ~	"3007691",
+    place == "Bourg-Saint-Maurice" ~ "3030949",
+    place == "Laval" ~ "3005866",	
+    place == "Merlin-Plage" ~ "2979543",
+    place == "Saint-Gervais" ~"2979698",
+    place == "Valkenburg" ~ "2745874",
+    TRUE ~ "add"
+  ))
+
+# Extract lat, log, geoname, country, population for each geoname_id
+xml_get <- function(tag, xml_file){
+  tag_nm <- paste0(".//", tag)
+  xml_find_first(xml_file, tag_nm) %>%
+  xml_text()
+}
+
+gn_get <- function(geoname_id, vars){
+  # Construct url
+  url_get_s <- "http://api.geonames.org/get?geonameId="
+  url_get_e <- "&username=sancy8"
+  url <- paste0(url_get_s, geoname_id, url_get_e)
+  
+  # Extract values from xml file, return as tibble
+  geo_data <- read_html(url)
+  
+  df <-  matrix(map_chr(vars, xml_get, geo_data), nrow = 1, ncol = length(vars))
+  colnames(df) <- vars_get
+  df <- as_tibble(df)
+  
+  return(df)
+}
+
+vars_get <- c("lat", "lng", "name", "countrycode", "population", "geonameid")
+
+dist_error_gps <- dist_error_gps %>%
+  left_join(bind_rows(purrr::map(dist_error_gps$geonameid, gn_get, vars_get)), by = "geonameid") %>%
+  mutate(lat = as.double(lat),
+         long = as.double(lng),
+         population = as.double(population)) %>%
+  select(-lng) %>%
+  rename(geoname_id = "geonameid", geoname = "name", country = "countrycode")
+
+# Add locations back to loc_gps
+loc_gps <- loc_gps %>%
+  bind_rows(dist_error_gps)
+```
+
+Replace coordinates in tour_data with updated coordinates from loc_gps.
+```{r update_gps}
+# Remove previous gps coordinates
+tour_data <- tour_data %>%
+  select(-(start_lat:dist_start_end))
+
+# Pickout place and coordinates and geoname_id.
+loc_gps_coord <- loc_gps %>%
+  select(place:long, geoname_id)
+
+# Add stage start GPS coordinates
+tour_data <- tour_data %>%
+  rename(place = "start_place", country = "start_country") %>%
+  left_join(loc_gps_coord, by = c("place", "country")) %>%
+  rename(start_place = "place", start_country = "country", start_lat = "lat", start_long = "long", start_gnid = "geoname_id")
+
+# Add stage end GPS coordinates
+tour_data <- tour_data %>%
+  rename(place = "end_place", country = "end_country") %>%
+  left_join(loc_gps_coord, by = c("place", "country")) %>%
+  rename(end_place = "place", end_country = "country", end_lat = "lat", end_long = "long", end_gnid = "geoname_id")
+
+# Check for any which didn't match
+tour_data %>%
+  filter(is.na(start_lat) | is.na(start_long) | is.na(end_lat) | is.na(end_long))
+```
+
+Recalculate distance based on GPS coordinates and return stages where this distance is more than 40km greater than the distance_km quoted on wikipedia.
+```{r check_dist_2}
+# Calculate distance between start and end of stage. 
+tour_data <- tour_data %>%
+  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+
+# Filter stages which have difference between start and end location 40km more than distance_km.
+dist_error <- tour_data %>%
+  filter(dist_start_end - distance_km > 40)
+
+dist_error
+
+# Summarise frequency of places in dist_error and frequency in all tour stages to identify locations which are incorrectly geocoded.
+place_freq <- tour_data %>%
+  select(start_place, end_place) %>%
+  filter(start_place != end_place) %>%
+  gather(key = "position", value = "place") %>%
+  group_by(place) %>%
+  summarise(n_all = n()) %>%
+  arrange(-n_all)
+
+dist_error_summary <- dist_error %>%
+  select(start_place, end_place) %>%
+  gather(key = "position", value = "place") %>%
+  group_by(place) %>%
+  summarise(n_error = n()) %>%
+  left_join(place_freq, by = "place") %>%
+  mutate(pct_error = n_error / n_all) %>%
+  arrange(-pct_error, -n_error)
+
+dist_error_summary
+
+dist_error_gps <- dist_error_summary %>%
+  filter(pct_error == 1) %>%
+  select(place)
+```
+
+Repeat previous analysis for those places that have 100% error rate. 
+
+```{r correct_gps_error=1}
+# Remove errors from loc_gps
+loc_gps <- loc_gps %>%
+  anti_join(dist_error_gps, by = "place")
+
+# Assign geoname id to errors
+dist_error_gps <- dist_error_gps %>%
+  mutate(geonameid = case_when(
+    place == "Ciney" ~ "2800298",
+    place == "Felsberg" ~ "2927226",
+    place == "Isola" ~ "6692555",
+    place == "L'Isle-Jourdain" ~ "6614303",			
+    place == "Lac de Payolle" ~ "3036546",
+    place == "Le Blanc" ~ "3005270",
+    place == "Les Orres" ~ "3000116",
+    place == "Lugny" ~ "6454621",
+    place == "Martigny" ~ "2659748",
+    place == "Moutiers" ~ "2991325",
+    place == "Moûtiers" ~ "2991325",
+    TRUE ~ "add"
+  ))
+
+dist_error_gps <- dist_error_gps %>%
+  left_join(bind_rows(purrr::map(dist_error_gps$geonameid, gn_get, vars_get)), by = "geonameid") %>%
+  mutate(lat = as.double(lat),
+         long = as.double(lng),
+         population = as.double(population)) %>%
+  select(-lng) %>%
+  rename(geoname_id = "geonameid", geoname = "name", country = "countrycode") %>%
+  distinct()
+
+# Add locations back to loc_gps
+loc_gps <- loc_gps %>%
+  bind_rows(dist_error_gps)
+
+# Manual change to Ciney country (otherwise won't match tour_data)
+loc_gps$country[loc_gps$place == "Ciney"] <- "FR"
+```
+
+Replace coordinates in tour_data with updated coordinates from loc_gps.
+```{r update_gps_2}
+# Remove previous gps coordinates
+tour_data <- tour_data %>%
+  select(-(start_lat:dist_start_end))
+
+# Pickout place and coordinates and geoname_id.
+loc_gps_coord <- loc_gps %>%
+  select(place:long, geoname_id)
+
+# Add stage start GPS coordinates
+tour_data <- tour_data %>%
+  rename(place = "start_place", country = "start_country") %>%
+  left_join(loc_gps_coord, by = c("place", "country")) %>%
+  rename(start_place = "place", start_country = "country", start_lat = "lat", start_long = "long", start_gnid = "geoname_id")
+
+# Add stage end GPS coordinates
+tour_data <- tour_data %>%
+  rename(place = "end_place", country = "end_country") %>%
+  left_join(loc_gps_coord, by = c("place", "country")) %>%
+  rename(end_place = "place", end_country = "country", end_lat = "lat", end_long = "long", end_gnid = "geoname_id")
+
+# Check for any which didn't match
+tour_data %>%
+  filter(is.na(start_lat) | is.na(start_long) | is.na(end_lat) | is.na(end_long))
+```
+
+Recalculate distance based on GPS coordinates and return stages where this distance is more than 40km greater than the distance_km quoted on wikipedia.
+```{r check_dist_3}
+# Calculate distance between start and end of stage. 
+tour_data <- tour_data %>%
+  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+
+# Filter stages which have difference between start and end location 40km more than distance_km.
+dist_error <- tour_data %>%
+  filter(dist_start_end - distance_km > 40)
+
+dist_error
+
+# Summarise frequency of places in dist_error and frequency in all tour stages to identify locations which are incorrectly geocoded.
+place_freq <- tour_data %>%
+  select(start_place, end_place) %>%
+  filter(start_place != end_place) %>%
+  gather(key = "position", value = "place") %>%
+  group_by(place) %>%
+  summarise(n_all = n()) %>%
+  arrange(-n_all)
+
+dist_error_summary <- dist_error %>%
+  select(start_place, end_place) %>%
+  gather(key = "position", value = "place") %>%
+  group_by(place) %>%
+  summarise(n_error = n()) %>%
+  left_join(place_freq, by = "place") %>%
+  mutate(pct_error = n_error / n_all) %>%
+  arrange(-pct_error, -n_error)
+
+dist_error_summary
+
+```
+
+Manual corrections to stages which stil have dist_start_end > distance_km + 40km
+```{r stage_manual}
+tour_data <- select(tour_data, -dist_start_end)
+
+# 1939_16b Needs to be Bonneval-sur_Arc, not Bonneval.
+row <- tour_data$stage_id == "1939_16b"
+tour_data$start_place[row] <- "Bonneval-sur-Arc"
+tour_data$start_lat[row] <- 45.3714
+tour_data$start_long[row] <- 7.04634
+tour_data$start_gnid[row] <- "3031697"
+
+# 1965_20 No change, about 50km difference due to GPS coordinates of Lyon and Auxerre being different to start/end points of Tour.
+
+# 1970_8 No change, can't see anything wrong with GPS coordinates.  Checked name of location vs Tour website as well.
+
+# 1979_12 
+row <- tour_data$stage_id == "1979_12"
+tour_data$start_lat[row] <- 50.1631
+tour_data$start_long[row] <-  5.2216
+tour_data$start_gnid[row] <- "2787948"
+
+# 1992_13
+row <- tour_data$stage_id == "1992_13"
+tour_data$start_place[row] <- "Saint-Gervais-les-Bains"
+tour_data$start_lat[row] <- 45.8929
+tour_data$start_long[row] <-  6.71381
+tour_data$start_gnid[row] <- "2979698"
+```
+
+Recalc dist_start_end.  Two cases, decided these need to know adjustment (as noted above).
+```{r check_dist_4}
+# Calculate distance between start and end of stage. 
+tour_data <- tour_data %>%
+  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+
+# Filter stages which have difference between start and end location 40km more than distance_km.
+dist_error <- tour_data %>%
+  filter(dist_start_end - distance_km > 40)
+
+dist_error
+
+```
+
+Add elevation to start and end places.
+```{r add_elevation}
+# Function to map
+get_elev <- function(lat, long){
+  geonames::GNsrtm3(lat, long)$srtm3
+}
+
+# Map function over start and end cGPS oords
+tour_data <- tour_data %>%
+  mutate(start_elev = map2_dbl(start_lat, start_long, get_elev),
+         end_elev = map2_dbl(end_lat, end_long, get_elev))
+```
+
+Checks on tour_data.
+```{r tour_data_checks}
+# Check unique row for each stage_id.  There are 57 stages which have duplicate rows, these are where stage appears to be NA. These are rest days. Should adapt stage_id so that is truly unique.
+tour_data %>%
+  group_by(stage_id) %>%
+  summarise(nrow = n()) %>%
+  filter(nrow > 1)
+
+filter(tour_data, str_detect(stage_id, "NA"))
+
+# Check for NAs in date, start_lat, start_long, end_lat or end_long
+filter(tour_data, is.na(date) | is.na(start_lat) | is.na(start_long) | is.na(end_lat) | is.na(end_long))
+
+# Check for NAs in terrain or terrain_group
+filter(tour_data, is.na(terrain) | is.na(terrain_group))
+
+# Check for NAs in winner_name or winner_country where not rest day or team time trial, and year is not 2019.  3 of the errors had no winner or where cancelled.  Checked 1998 stage 17, stage was cancelled as riders went on strike.
+filter(tour_data, is.na(winner_name) | is.na(winner_country), terrain != "Rest day", terrain != "Team time trial", year(date) != 2019)
+```
+
+Export tour_data as .csv
+```{r export}
+write_csv2(tour_data, "data/tour_data.csv")
+```
+

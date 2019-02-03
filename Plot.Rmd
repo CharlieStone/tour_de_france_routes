@@ -1,0 +1,223 @@
+---
+title: "Tour de France plot"
+output:
+  html_document:
+    df_print: paged
+---
+
+# SETUP
+Load libraries.
+```{r setup}
+library(tidyverse)
+library(rvest)
+library(maps)
+library(mapproj)
+library(plotly)
+library(lubridate)
+```
+
+Import data.
+```{r import_data}
+tour_data <- read_csv2("data/tour_data.csv")
+spec(tour_data)
+```
+
+# WRANGLE DATA
+Rearrange data for plotting (one row per location).
+```{r tour_data}
+tour_data <- tour_data %>%
+  mutate(year = year(date))
+
+tour_start_loc <- tour_data %>%
+  select(-dist_start_end, -end_lat, -end_long, -end_place, -end_gnid) %>%
+  rename(place = "start_place", lat = "start_lat", long = "start_long") %>%
+  mutate(position = "start")
+
+tour_end_loc <- tour_data %>%
+  select(-dist_start_end, -start_lat, -start_long, -start_place, -start_gnid) %>%
+  rename(place = "end_place", lat = "end_lat", long = "end_long") %>%
+  mutate(position = "end")
+
+tour_all_loc <- dplyr::bind_rows(tour_start_loc, tour_end_loc) %>%
+  arrange(date, position)
+
+rm(tour_start_loc, tour_end_loc)
+
+tour_all_loc[1:20, ]
+```
+
+# PLOT COUNTRIES
+Create plot of countries Tour has gone through since the first Tour to the latest.
+```{r plot_borders}
+world_map <- map_data(map = "world")
+
+countries <-
+  c("Belgium",
+    "Germany",
+    "Ireland",
+    "Italy",
+    "Luxembourg",
+    "Netherlands",
+    "Spain",
+    "Switzerland",
+    "UK")
+
+borders_france <- map_data(map = "world", region = "France")
+borders_others <- map_data(map = "world", region = countries)
+
+# Plot borders of countries
+borders_plot <- ggplot() +
+  geom_polygon(data = borders_france, aes(x = long, y = lat, group = group), fill = "#FEED00", colour = "#FDFEFE") +
+  geom_polygon(data = borders_others, aes(x = long, y = lat, group = group), fill = "#F2F3F4", colour = "#FDFEFE") +
+  coord_map() +
+  theme_void()
+
+borders_plot
+```
+
+# PLOT TOUR LOCATIONS
+Plot locations of Tour stages.
+```{r plot_loc}
+# Plot all locations of tour stages
+locations_plot <- borders_plot +
+  geom_point(data = tour_all_loc, aes(x = long, y = lat), size = 0.25, colour = "black")
+
+locations_plot
+
+locations_bin <- ggplot(data = tour_all_loc, aes(x = long, y = lat)) +
+  stat_binhex(bins = 15, colour = "white", na.rm = TRUE) +
+  scale_fill_gradientn(colours = c("#FEED00", "#262525"), name = "Frequency", na.value = NA)
+
+locations_bin
+```
+
+Plot locations by terrain.
+```{r plot_stage_type_loc}
+# Split stages by stage type (stage, sub_stage and prologue)
+loc_terrain<- borders_plot +
+  geom_point(data = tour_all_loc, aes(x = long, y = lat), size = 0.25) +
+  facet_wrap(~ terrain_group)
+
+loc_terrain
+```
+
+# DATA SETUP FOR PLOTTING ROUTES
+
+1) **Sections of the plotted route not cycled**
+Create dataframe with coordinates of not cycled route of tour, ie space between end of one stage and start of the next. This will enable us to distinguish between 'cycled' stages and 'not cycled' stages in the plot using solid and dashed lines, respectively.
+```{r not_cycled}
+tour_not_cyc_stage <- tour_data %>%
+  arrange(date) %>%
+  #select(year, start_lat, start_long, end_lat, end_long) %>%
+  group_by(year(date)) %>%
+  mutate(end_prev_lat = if_else(date == min(date), 1E9, lag(end_lat)),
+         end_prev_long = if_else(date == min(date), 1E9, lag(end_long))) %>%
+  ungroup() %>%
+  filter(end_prev_lat != 1E9) 
+
+tour_not_cyc_stage <- tour_not_cyc_stage %>%
+  select(year, end_prev_lat, end_prev_long, start_lat, start_long, terrain_group)
+```
+
+2) **Start and end of plotted route**
+Add new column `tour_progress` to tour stages data to create colour gradient in chart.
+```{r tour_progress}
+tour_data <- tour_data %>%
+  group_by(year) %>%
+  filter(terrain_group != "Rest day") %>%
+  mutate(tour_progress = stage_number / max(stage_number)) %>%
+  ungroup()
+
+filter(tour_data, is.na(tour_progress))
+```
+
+# PLOT TOUR ROUTES
+
+Create `ggplot()` and write as function `plot_tour_ind()`.
+```{r plot_tour_ind}
+plot_tour_ind <- function(year_start, year_end, n_column) {
+tour_subset_loc <- tour_all_loc %>%
+  filter(terrain_group != "Rest day") %>%
+  filter(year >= year_start & year <= year_end)
+
+tour_subset_stage <- tour_data %>%
+  filter(terrain_group != "Rest day") %>%
+  filter(year >= year_start & year <= year_end)
+
+tour_subset_not_cyc <- tour_not_cyc_stage %>%
+  filter(terrain_group != "Rest day") %>%
+  filter(year >= year_start & year <= year_end)
+
+# Calculate mean stage number for midpoint of colour gradient
+mean_stage <- tour_subset_stage %>%
+  summarise(mean_stage = mean(stage_number))
+
+mean_stage <- mean_stage[[1, 1]]
+
+# Plot route for this year(s)
+tours_plot <- borders_plot +
+  # Plot start and end locations of tour
+  geom_point(data = tour_subset_loc,
+             aes(x = long, y = lat),
+             size = 0) +
+  # Plot cycled parts of tour as solid lines
+  geom_segment(
+    data = tour_subset_stage,
+    aes(
+      x = start_long,
+      y = start_lat,
+      xend = end_long,
+      yend = end_lat,
+      colour = tour_progress
+    ),
+   # arrow = arrow(length = unit(0.05, "npc"), angle = 20),
+    size = 1.5
+   ) +
+  # Plot not cycled route between end of previous and start of next stage as dashed line
+  geom_segment(
+    data = tour_subset_not_cyc,
+    aes(
+      x = end_prev_long,
+      y = end_prev_lat,
+      xend = start_long,
+      yend = start_lat
+    ),
+    size = 0.5,
+    colour = "#2E2D2D",
+    linetype = 3
+  ) + 
+  facet_wrap( ~ year, ncol = n_column)  
+
+tours_plot
+}
+```
+
+Plot individual years for investigation
+```{r plot_ind}
+plot_tour_ind(1940, 1960, n_column = 5)
+```
+
+
+Plot all years on one pdf
+```{r plot_tours}
+all_years_plot <- plot_tour_ind(1903, 2019, n_column = 10)
+
+# Create vector with legend labels
+leg_labels <- c("Start", "Finish")
+
+all_years_plot <- all_years_plot +
+  theme(plot.title = element_text(size = 50, face = "bold", hjust = 0.5, margin = margin(t = 10, b = 40, unit = "pt")),
+        legend.position = "top",
+        legend.title = element_text(size = 20, face = "bold", colour = "black"),
+        legend.text = element_text(size = 20),
+        legend.box.margin=margin(20,20,20,20),
+        strip.text = element_text(size = 20, face = "bold")) +
+  # Code to customise appearance of legend if using:
+  scale_colour_gradient(name = "Tour progress", breaks = seq(0, 1, by = 1), limits = c(0, 1), labels = leg_labels, low = "green", high = "#01061d") +
+  guides(colour = guide_legend(nrow = 1, keywidth = 0.1, keyheight = 0.4, default.unit = "inch")) +
+  labs(title = "Les routes de Tour de France")
+
+ggsave("tour_routes.pdf", all_years_plot, width = 1050, height = 1485, units = "mm", limitsize = FALSE)
+```
+
+
