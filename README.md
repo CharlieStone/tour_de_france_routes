@@ -10,7 +10,7 @@ We initially scraped data from the Tour de France [website](https://www.letour.f
 Each row of the [data](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) is a stage of a Tour. Each row contains:
 + The date the stage started.
 + The stage number and stage type (prologue, main or sub stage a to c).
-+ The start and end locations of the stage (as place name, country and GPS coordinates).
++ The start and end locations of the stage (as place name, country and GPS coordinates, and elevation in metres).
 + The type of terrain for the stage (in raw form as terrain and grouped in terrain_group).
 + The winner of the stage (name and country).
 + The distance cycled in kilometres and the 'as the crow flies' distance between the start and end locations of the stage.
@@ -27,8 +27,10 @@ There are two stages where the difference is more than 40km (out of 2437 stages 
 ## Plots
 The file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf) contains a plot of every start and end location of the Tour. The colour of the route is green at the start and black at the end. Dotted lines connect the end of one stage and the start of the next. This is particularly relevant for more recent years where the Tour has not been a continuous route.
 
-The code to produce the pdf is [here](tour_de_france_routes/Plot.Rmd). This also contains a scatter plot of every stage start and end location on a map of Europe, and a hexagonal bin density plot of the locations.
-      
+The code to produce the pdf is [here](tour_de_france_routes/Plot.Rmd). This also contains:
++ A scatter plot of every stage start and end location on a map of Europe.
++ A hexagonal bin density plot of the locations by latitude and longitude.
++ A tile plot of the terrain types for every stage (y axis) of every tour (x axis).
 
 ## Data sources
 Data was scraped from the stage table from the Wikipedia article for each year of the Tour. For example, here is a link to the wikipage for [1975](https://en.wikipedia.org/wiki/1975_Tour_de_France). The place names were geocoded using the geonames [api](http://www.geonames.org/export/ws-overview.html).

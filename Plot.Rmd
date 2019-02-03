@@ -14,6 +14,7 @@ library(maps)
 library(mapproj)
 library(plotly)
 library(lubridate)
+library(ggflags)
 ```
 
 Import data.
@@ -45,6 +46,34 @@ tour_all_loc <- dplyr::bind_rows(tour_start_loc, tour_end_loc) %>%
 rm(tour_start_loc, tour_end_loc)
 
 tour_all_loc[1:20, ]
+```
+
+# PLOT STAGES AS BARS
+Plot each year as a bar, with colours for each terrain_group.
+```{r plot_stages}
+# Create day variable which shows the day of the Tour with reference to the start date of the first stage for that year.
+
+# Create date variable date_1900 with all dates in same year, 1900 arbitrarily. 
+tour_data <- tour_data %>%
+  mutate(date_1900 = make_date(year = 1900L, month = month(date), day = day(date)))
+
+# Create variable tour_day to be day of tour.
+tour_data <- tour_data %>%
+  arrange(date) %>%
+  group_by(year) %>%
+  mutate(tour_day = lubridate::time_length(interval(min(date), date), "day"),
+         counter = 1,
+         section_number = cumsum(counter)) %>%
+  select(-counter) %>%
+  ungroup()
+
+# Plot
+tour_data %>%
+  ggplot(aes(x = year, y  = section_number, fill = terrain_group)) +
+  geom_tile () +
+  scale_fill_manual(values=c("#008B00", "#FFD700","#0000EE", "#CD0000", "#000000","#9400D3", "#00B2EE")) + 
+  theme(panel.background = element_rect(fill = "white"))
+
 ```
 
 

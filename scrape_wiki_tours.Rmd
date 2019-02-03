@@ -161,6 +161,8 @@ data_sep <- data_sep %>%
 filter(data_sep, is.na(date))
 ```
 
+
+
 Clean rest day rows. There are rows for rest days, these have NA for 'end' because the Tour didn't go anywhere on these days.
 ```{r clean_rest_day}
 # Clean rest day rows
@@ -726,14 +728,14 @@ Now use this function to calculate distance in km between start and end location
 ```{r check_dist}
 # Calculate distance between start and end of stage. 
 tour_data <- tour_data %>%
-  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+  mutate(dist_crow_km = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
 
 # Filter stages which have difference between start and end location 40km more than distance_km.  Use 40km rather than 0 or 10km as smaller distance could give errors due to difference between geoname GPS coord for city (eg Paris), and distane actually cycled (eg if started on outkirts, but gps coord is in middle).
 dist_error <- tour_data %>%
-  mutate(dist_diff = dist_start_end - distance_km) %>%
+  mutate(dist_diff = dist_crow_km - distance_km) %>%
   filter(dist_diff > 40)
 
-# Summarise frequency of places in dist_error and frequency in all tour stages to identify locations which are incorrectly geocoded, ie those for which majority of stages have dist_error.  Exclude stages which start and end in the same place from frequency of all tour stages (otherwise these will lower the error rate, but obviously will have dist_start_end = 0km < distance_km).
+# Summarise frequency of places in dist_error and frequency in all tour stages to identify locations which are incorrectly geocoded, ie those for which majority of stages have dist_error.  Exclude stages which start and end in the same place from frequency of all tour stages (otherwise these will lower the error rate, but obviously will have dist_crow_km = 0km < distance_km).
 
 place_freq <- tour_data %>%
   select(start_place, end_place) %>%
@@ -829,7 +831,7 @@ Replace coordinates in tour_data with updated coordinates from loc_gps.
 ```{r update_gps}
 # Remove previous gps coordinates
 tour_data <- tour_data %>%
-  select(-(start_lat:dist_start_end))
+  select(-(start_lat:dist_crow_km))
 
 # Pickout place and coordinates and geoname_id.
 loc_gps_coord <- loc_gps %>%
@@ -856,11 +858,11 @@ Recalculate distance based on GPS coordinates and return stages where this dista
 ```{r check_dist_2}
 # Calculate distance between start and end of stage. 
 tour_data <- tour_data %>%
-  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+  mutate(dist_crow_km = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
 
 # Filter stages which have difference between start and end location 40km more than distance_km.
 dist_error <- tour_data %>%
-  filter(dist_start_end - distance_km > 40)
+  filter(dist_crow_km - distance_km > 40)
 
 dist_error
 
@@ -934,7 +936,7 @@ Replace coordinates in tour_data with updated coordinates from loc_gps.
 ```{r update_gps_2}
 # Remove previous gps coordinates
 tour_data <- tour_data %>%
-  select(-(start_lat:dist_start_end))
+  select(-(start_lat:dist_crow_km))
 
 # Pickout place and coordinates and geoname_id.
 loc_gps_coord <- loc_gps %>%
@@ -961,11 +963,11 @@ Recalculate distance based on GPS coordinates and return stages where this dista
 ```{r check_dist_3}
 # Calculate distance between start and end of stage. 
 tour_data <- tour_data %>%
-  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+  mutate(dist_crow_km = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
 
 # Filter stages which have difference between start and end location 40km more than distance_km.
 dist_error <- tour_data %>%
-  filter(dist_start_end - distance_km > 40)
+  filter(dist_crow_km - distance_km > 40)
 
 dist_error
 
@@ -991,9 +993,9 @@ dist_error_summary
 
 ```
 
-Manual corrections to stages which stil have dist_start_end > distance_km + 40km
+Manual corrections to stages which stil have dist_crow_km > distance_km + 40km
 ```{r stage_manual}
-tour_data <- select(tour_data, -dist_start_end)
+tour_data <- select(tour_data, -dist_crow_km)
 
 # 1939_16b Needs to be Bonneval-sur_Arc, not Bonneval.
 row <- tour_data$stage_id == "1939_16b"
@@ -1020,31 +1022,126 @@ tour_data$start_long[row] <-  6.71381
 tour_data$start_gnid[row] <- "2979698"
 ```
 
-Recalc dist_start_end.  Two cases, decided these need to know adjustment (as noted above).
+Recalc dist_crow_km.  Two cases, decided these need to know adjustment (as noted above).
 ```{r check_dist_4}
 # Calculate distance between start and end of stage. 
 tour_data <- tour_data %>%
-  mutate(dist_start_end = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
+  mutate(dist_crow_km = get_geo_distance(start_long, start_lat, end_long, end_lat) / 1000) 
 
 # Filter stages which have difference between start and end location 40km more than distance_km.
 dist_error <- tour_data %>%
-  filter(dist_start_end - distance_km > 40)
+  filter(dist_crow_km - distance_km > 40)
 
 dist_error
 
 ```
 
 Add elevation to start and end places.
-```{r add_elevation}
-# Function to map
-get_elev <- function(lat, long){
+```{r get_elevation}
+# Functions to map (get elevation from geonames).  Use one of two surveys, topo30 or srtm3.
+get_elev_topo30 <- function(lat, long){
+  geonames::GNgtopo30(lat, long)$gtopo30
+}
+
+get_elev_srtm3 <- function(lat, long){
   geonames::GNsrtm3(lat, long)$srtm3
 }
 
-# Map function over start and end cGPS oords
+# Construct unique list of GPS coordinates (to reduce number of queries to geonames api)
+gps_summary_start <- tour_data %>%
+  select(starts_with("start"))
+
+gps_summary_start <- gps_summary_start %>%
+  rename_all(.funs = funs(sub("+.+_", "", names(gps_summary_start)))) 
+
+gps_summary_end <- tour_data %>%
+  select(starts_with("end"))
+
+gps_summary_end <- gps_summary_end %>%
+  rename_all(.funs = funs(sub("+.+_", "", names(gps_summary_end)))) 
+
+gps_summary <- gps_summary_start %>%
+  dplyr::bind_rows(gps_summary_end) %>%
+  distinct()
+
+# Map get_elev over each location.  Split into 3 as can be temperamental connecting to geonames api (could be my internet connection)
+gps_summary_1 <- gps_summary %>%
+  slice(1:300) %>%
+  mutate(elev = map2_dbl(lat, long, get_elev_topo30))
+
+gps_summary_2 <- gps_summary %>%
+  slice(301:550) %>%
+  mutate(elev = map2_dbl(lat, long, get_elev_topo30))
+
+gps_summary_3 <- gps_summary %>%
+  slice(551:791) %>%
+  mutate(elev = map2_dbl(lat, long, get_elev_topo30))
+
+# Combine gps_summary together
+gps_summary <- dplyr::bind_rows(gps_summary_1, gps_summary_2, gps_summary_3)
+
+# Get elevation from strm
+elev_error <- filter(gps_summary, elev < -20 | elev > 3000) %>%
+  select(-elev) %>%
+  mutate(elev = map2_dbl(lat, long, get_elev_srtm3))
+
+# Add corrected elevations to gps_summary
+gps_summary <- gps_summary %>%
+  anti_join(elev_error, by = c("place", "country", "lat", "long")) %>%
+  bind_rows(elev_error)
+
+# Check for any errors
+gps_summary %>%
+  filter(elev < -20 | elev > 3000)
+
+# One error, Passge du Gois. Probably an error because this is an underwater causeway only passable at sometimes of the day. Give it an elevation of -1 as it is frequently underwater.
+gps_summary$elev[gps_summary$place == "Passage du Gois"] <- -1
+
+top_n(gps_summary, 10, elev) %>% arrange(-elev)
+top_n(gps_summary, 10, -elev) %>% arrange(elev)
+```
+
+Add elevation to tour_data
+```{r add_elevation}
+# Add start location elevations
 tour_data <- tour_data %>%
-  mutate(start_elev = map2_dbl(start_lat, start_long, get_elev),
-         end_elev = map2_dbl(end_lat, end_long, get_elev))
+  rename_all(.funs = funs(sub("start_", "", names(tour_data)))) %>%
+  left_join(gps_summary, by = c("place", "country", "lat", "long", "gnid")) %>%
+  rename(
+    start_place = "place",
+    start_country = "country",
+    start_lat = "lat",
+    start_long = "long",
+    start_gnid = "gnid",
+    start_elev = "elev"
+  )
+
+# Add end location elevations
+tour_data <- tour_data %>%
+  rename_all(.funs = funs(sub("end_", "", names(tour_data)))) %>%
+  left_join(gps_summary, by = c("place", "country", "lat", "long", "gnid")) %>%
+  rename(
+    end_place = "place",
+    end_country = "country",
+    end_lat = "lat",
+    end_long = "long",
+    end_gnid = "gnid",
+    end_elev = "elev"
+  )
+
+# Tidy up column order
+tour_data <- tour_data %>%
+  rename(distance_crow_km = "dist_end")
+
+tour_data <- tour_data %>%
+  select(
+    stage_id:sub_stage,
+    starts_with("start"),
+    starts_with("end"),
+    starts_with("dist"),
+    starts_with("terrain"),
+    starts_with("winner")
+  )
 ```
 
 Checks on tour_data.
@@ -1065,6 +1162,38 @@ filter(tour_data, is.na(terrain) | is.na(terrain_group))
 
 # Check for NAs in winner_name or winner_country where not rest day or team time trial, and year is not 2019.  3 of the errors had no winner or where cancelled.  Checked 1998 stage 17, stage was cancelled as riders went on strike.
 filter(tour_data, is.na(winner_name) | is.na(winner_country), terrain != "Rest day", terrain != "Team time trial", year(date) != 2019)
+
+# Check no stages with same date apart from substages.  Returned 11 stage numbers on same date. Checked against Tour website.  Changed if neccessary.
+dupl_dates <- tour_data %>%
+  filter(sub_stage != "a", sub_stage != "b", sub_stage != "c") %>%
+  group_by(date) %>%
+  summarise(n_date = n()) %>%
+  filter(n_date > 1)
+
+tour_data %>%
+  semi_join(dupl_dates)
+
+# 1970_P
+row <- tour_data$stage_id == "1970_P"
+tour_data$date[row] <- make_date(1970L, 6L, 26L)
+
+# 1975_5
+row <- tour_data$stage_id == "1975_5"
+tour_data$date[row] <- make_date(1975L, 7L, 1L)
+
+# 1984 correct, no change
+
+# 1986 correct, no change
+
+# 1987 correct, no change (both (1,2) and (4,5))
+
+# 1988 correct, no change (both (1,2) and (16,17))
+
+# 1989 correct, no change
+
+# 1990 correct, no change
+
+# 1991 correct, no change
 ```
 
 Export tour_data as .csv
