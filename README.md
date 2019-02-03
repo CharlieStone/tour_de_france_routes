@@ -3,7 +3,7 @@ This project is on the routes of the Tour De France for all years from 1903 to 2
 
 The data on the routes was scraped from Wikipedia. The start and end locations GPS coordinates were obtained from the place names using geonames. The code to do the scraping and cleaning is here [scrape_wiki_tours.Rmd](tour_de_france_routes/scrape_wiki_tours.Rmd).
 
-We initially scraped data from the Tour de France [website](https://www.letour.fr/en/history). However, the data on stage winners and data on stage start and end are in different tables, and there is no information on the terrain types for each year on the Tour de France website.
+We initially scraped data from the Tour de France [website](https://www.letour.fr/en/history). However, there were errors in the data (eg frequent mispellings of stage names and dates missing for stages on earlier years), and we found much fewer errors in the Wikipedia data. In addition, the Tour de France data does not give the country for each place name which makes geocoding more difficult (due to places with the same name in different countries), and the Wikipedia data has information on the terrain types for each year which is not available on the Tour de France website.
 
 ## Data
 #### Description

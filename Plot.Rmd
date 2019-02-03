@@ -18,10 +18,9 @@ library(lubridate)
 
 Import data.
 ```{r import_data}
-tour_data <- read_csv2("data/tour_data.csv")
-spec(tour_data)
+tour_data <- read_csv("data/tour_data.csv")
 
-write_csv(tour_data, "data/tour_data2.csv")
+spec(tour_data)
 ```
 
 # WRANGLE DATA
@@ -47,6 +46,7 @@ rm(tour_start_loc, tour_end_loc)
 
 tour_all_loc[1:20, ]
 ```
+
 
 # PLOT COUNTRIES
 Create plot of countries Tour has gone through since the first Tour to the latest.
@@ -196,11 +196,11 @@ tours_plot
 
 Plot individual years for investigation
 ```{r plot_ind}
-plot_tour_ind(1940, 1960, n_column = 5)
+plot_tour_ind(1947, 1960, n_column = 5)
 ```
 
 
-Plot all years on one pdf
+Produce pdf of all Tour routes (tour_routes.pdf)
 ```{r plot_tours}
 all_years_plot <- plot_tour_ind(1903, 2019, n_column = 10)
 
