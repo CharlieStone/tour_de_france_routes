@@ -1069,6 +1069,6 @@ filter(tour_data, is.na(winner_name) | is.na(winner_country), terrain != "Rest d
 
 Export tour_data as .csv
 ```{r export}
-write_csv2(tour_data, "data/tour_data.csv")
+write_csv(tour_data, "data/tour_data.csv")
 ```
 

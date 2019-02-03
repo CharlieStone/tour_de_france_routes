@@ -1,5 +1,5 @@
 ---
-title: "Tour de France plot"
+title: "Tour de France plots"
 output:
   html_document:
     df_print: paged
@@ -20,6 +20,8 @@ Import data.
 ```{r import_data}
 tour_data <- read_csv2("data/tour_data.csv")
 spec(tour_data)
+
+write_csv(tour_data, "data/tour_data2.csv")
 ```
 
 # WRANGLE DATA
