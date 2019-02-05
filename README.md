@@ -8,7 +8,7 @@ A chart of the elevation (y axis) of the start and end locations of each stage (
 A chart of the distance cycled (y axis) in each stage (x axis) of each Tour (chart), and total Tour distance (colour) is here.
 [tour_distance.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_distance.pdf).
 
-A chart of the winners of each stage of the Tour is here.
+A chart of the winners of each stage of the Tour is here
 [stage_winners.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/stage_winners.pdf).
 
 The type of stage for each Tour is plotted here [tour_stage_type.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_stage_type.pdf).
@@ -48,7 +48,7 @@ A chart of the elevation (y axis) of the start and end locations of each stage (
 A chart of the distance cycled (y axis) in each stage (x axis) of each Tour (chart), and total Tour distance (colour) is here.
 [tour_distance.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_distance.pdf).
 
-A chart of the winners of each stage of the Tour is here.
+A chart of the winners of each stage of the Tour is here
 [stage_winners.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/stage_winners.pdf).
 
 The file [tour_stage_type.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_stage_type.pdf) contains a plot of the type of stage (tile fill) for each stage (y axis) of each Tour (x axis).
