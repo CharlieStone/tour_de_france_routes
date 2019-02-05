@@ -1,5 +1,8 @@
 # Tour de France routes
-This project is on the routes of the Tour De France for all years from 1903 to 2019. The data [(tour_data.csv)](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) has GPS coordinates for each start and end locations for each stage of the tour along with further details for each stage. The routes are shown in the file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf). 
+This project is on the routes of the Tour De France for all years from 1903 to 2019. The data [(tour_data.csv)](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) has GPS coordinates for each start and end locations for each stage of the tour along with further details for each stage. 
+
+Maps of the routes are in the file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf). 
+The type of stage for each Tour is here [tour_stage_type.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_stage_type.pdf).
 
 The data on the routes was scraped from Wikipedia. The start and end locations GPS coordinates were obtained from the place names using geonames. The code to do the scraping and cleaning is here [scrape_wiki_tours.Rmd](tour_de_france_routes/scrape_wiki_tours.Rmd).
 
@@ -27,10 +30,11 @@ There are two stages where the difference is more than 40km (out of 2437 stages 
 ## Plots
 The file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf) contains a plot of every start and end location of the Tour. The colour of the route is green at the start and black at the end. Dotted lines connect the end of one stage and the start of the next. This is particularly relevant for more recent years where the Tour has not been a continuous route.
 
+The file [tour_stage_type.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_stage_type.pdf) contains a plot of the type of stage (tile fill) for each stage (y axis) of each Tour (x axis).
+
 The code to produce the pdf is [here](tour_de_france_routes/Plot.Rmd). This also contains:
 + A scatter plot of every stage start and end location on a map of Europe.
 + A hexagonal bin density plot of the locations by latitude and longitude.
-+ A tile plot of the terrain types for every stage (y axis) of every tour (x axis).
 
 ## Data sources
 Data was scraped from the stage table from the Wikipedia article for each year of the Tour. For example, here is a link to the wikipage for [1975](https://en.wikipedia.org/wiki/1975_Tour_de_France). The place names were geocoded using the geonames [api](http://www.geonames.org/export/ws-overview.html).

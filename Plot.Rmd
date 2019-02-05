@@ -87,15 +87,36 @@ rm(tour_start_loc, tour_end_loc)
 tour_all_loc[1:20, ]
 ```
 
-# PLOT STAGES AS BARS
+# TILE PLOT OF STAGES
 Plot each year as a bar, with colours for each terrain_group.
 ```{r plot_stages}
-tour_data %>%
+stage_type_plot <- tour_data %>%
+  filter(terrain_group != "Rest day") %>%
+  arrange(date) %>%
+  group_by(year) %>%
+  mutate(counter = 1,
+         section_number = cumsum(counter)) %>%
+  select(-counter) %>%
+  ungroup() %>%
   ggplot(aes(x = year, y  = section_number, fill = terrain_group)) +
-  geom_tile () +
-  scale_fill_manual(values=c("#008B00", "#FFD700","#0000EE", "#CD0000", "#000000","#9400D3", "#00B2EE")) + 
-  theme(panel.background = element_rect(fill = "white"))
+  geom_tile (colour = "#000000") +
+  scale_fill_manual(values=c("#008B00", "#0A5CF5", "#FFD700", "#CD0000", "#000000","#9400D3", "#0000EE")) + 
+  scale_x_continuous(breaks=c(1903,1914, 1939, 1950, 1970, 1990, 2010, 2019)) +
+  theme(panel.background = element_rect(fill = "white")) + theme(plot.subtitle = element_text(vjust = 1), 
+    panel.grid.major = element_line(linetype = "blank"), 
+    panel.grid.minor = element_line(linetype = "blank"), 
+    axis.title = element_text(size = 80), 
+    axis.text = element_text(size = 80, colour = "gray16"), 
+    axis.text.x = element_text(size = 80, 
+        colour = "gray16"), axis.text.y = element_text(size = 80), 
+    plot.title = element_text(size = 100), 
+    legend.text = element_text(size = 80), 
+    legend.title = element_text(size = 80)) +labs(title = "Stages of the Tour", x = "Year", y = "Stage", fill = "Type of stage") + 
+    theme(legend.key = element_rect(size = 20)) + 
+    theme(axis.title.x = element_text(vjust = 15), axis.text.x = element_text(vjust = 20),
+    plot.title = element_text(vjust = -20))
 
+ggsave("tour_stage_type.pdf", stage_type_plot, width = 1485, height = 1000, units = "mm", limitsize = FALSE)
 ```
 
 
