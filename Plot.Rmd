@@ -40,8 +40,8 @@ tour_data <- tour_data %>%
   arrange(date) %>%
   group_by(year) %>%
   mutate(tour_day = lubridate::time_length(interval(min(date), date), "day"),
-         counter = 1,
-         section_number = cumsum(counter)) %>%
+         counter = if_else(terrain_group == "Rest day", 0, 1),
+         section_number = if_else(terrain_group == "Rest day", -1, cumsum(counter))) %>%
   select(-counter) %>%
   ungroup()
 
@@ -244,6 +244,50 @@ tour_elevation <- tour_all_loc %>%
 ggsave("tour_elevation.pdf", tour_elevation, width = 1000, height = 1485, units = "mm", limitsize = FALSE)
 ```
 
+# PLOT DISTANCE CYCLED IN EACH STAGE
+```{r plot_dist_cyc}
+total_dist <- tour_data %>%
+  group_by(year) %>%
+  summarise(dist_cyc_tot_km = sum(distance_km), dist_crow_tot_km = sum(distance_crow_km)) %>%
+  ungroup()
+
+tour_dist <- tour_data %>%
+  filter(terrain_group != "Rest day") %>%
+  left_join(total_dist, by = "year") %>%
+  mutate(avg_elev = (start_elev + end_elev) / 2 ) %>%
+  ggplot(aes(section_number, distance_km)) +
+   geom_rect(aes(fill = dist_cyc_tot_km), 
+                xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf, 
+                alpha = 0.3) +
+  geom_bar(stat = "identity", fill = "black") +
+  theme(panel.background = element_rect(fill = "white")) +
+  facet_wrap( ~ year, ncol = 7) +
+  scale_fill_viridis_c(name = "Tour total distance cycled (km)") + 
+  guides(fill = guide_colourbar(title.position = "right", 
+                                    barwidth = 4, barheight = 40, 
+                                    ticks = FALSE)) +
+  theme(
+    plot.title = element_text(
+      size = 50,
+      face = "bold",
+      hjust = 0.5,
+      margin = margin(t = 10, b = 40, unit = "pt")
+    ),
+    strip.text = element_text(size = 25, face = "bold", colour = "white"),
+    axis.text.y = element_text(size = 25),
+    axis.title.y = element_text(size = 40),
+    axis.title.x = element_text(size = 40),
+    axis.text.x = element_text(size = 0),
+    legend.title = element_text(size = 40, angle = 90), 
+    legend.text = element_text(size = 35, angle = 90),
+    strip.background = element_rect(fill = "black"),
+    axis.ticks.x = element_blank(), 
+   ) +
+  labs(title = "Distance cyclé dans les Tours de France", x = "Stage", y = "Distance cycled (km)")
+
+ggsave("tour_distance.pdf", tour_dist, width = 1000, height = 1485, units = "mm", limitsize = FALSE)
+
+```
 
 # DATA SETUP FOR PLOTTING ROUTES
 

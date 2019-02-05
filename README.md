@@ -2,7 +2,11 @@
 This project is on the routes of the Tour De France for all years from 1903 to 2019. The data [(tour_data.csv)](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) has GPS coordinates for each start and end locations for each stage of the tour along with further details for each stage. 
 
 Maps of the routes are in the file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf). 
-A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf).
+
+A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each Tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf).
+
+A chart of the distance cycled (y axis) in each stage (x axis) of each Tour (chart), and total Tour distance (colour) is here.
+[tour_distance.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_distance.pdf).
 
 The type of stage for each Tour is plotted here [tour_stage_type.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_stage_type.pdf).
 
@@ -20,7 +24,9 @@ Each row of the [data](https://github.com/CharlieStone/tour_de_france_routes/blo
 + The winner of the stage (name and country).
 + The distance cycled in kilometres and the 'as the crow flies' distance between the start and end locations of the stage.
 
-A limitation of the data is that it does not give the exact route the Tour followed between the start and end locations of each stage. The plots of the routes plot a straight line between the start and end locations of each stage.  This means that the route plots for the 1920s (for example) have lines going across the sea along the west coast of France. Similarly, the elevation plots, particularly for the early years (1903 to 1909), do not show the full altitude to which the Tour went in these years.
+A limitation of the data is that it does not give the exact route the Tour followed between the start and end locations of each stage. The plots of the routes plot a straight line between the start and end locations of each stage.  This means that the route plots for the 1920s (for example) have lines going across the sea along the west coast of France. The difference between the actual distance cycled (distance_km in the [data](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv)) and the 'as the crow files' distance between the start and end locations of the stage (distance_crow_km) gives an indication of the extent to which the route cycled differs from the straight line shown on the plot.
+
+Similarly, the elevation plots, particularly for the early years (1903 to 1909), do not show the full altitude to which the Tour went in these years.
 
 #### Checks on GPS coordinates
 We have checked that the 'as the crow flies' distance (dist_start_end) between the GPS coordinates for the start and end locations of each stage is not more than 40km greater than the distance cycled (distance_km) quoted in the Wikipedia table. We used 40km as differences less than this are unlikely to be clearly noticeable in the context of the entire route of the Tour, and with a difference less than this there are more cases due to many possible GPS coordinates for large cities. 
@@ -33,6 +39,11 @@ There are two stages where the difference is more than 40km (out of 2437 stages 
 
 ## Plots
 The file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf) contains a plot of every start and end location of the Tour. The colour of the route is green at the start and black at the end. Dotted lines connect the end of one stage and the start of the next. This is particularly relevant for more recent years where the Tour has not been a continuous route.
+
+A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf).
+
+A chart of the distance cycled (y axis) in each stage (x axis) of each Tour (chart), and total Tour distance (colour) is here.
+[tour_distance.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_distance.pdf).
 
 The file [tour_stage_type.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_stage_type.pdf) contains a plot of the type of stage (tile fill) for each stage (y axis) of each Tour (x axis).
 
@@ -54,3 +65,5 @@ Data was scraped from the stage table from the Wikipedia article for each year o
 |  Calculating distances from GPS| geosphere|
 |  Plotting| ggplot2, plotly|
 |  Plotting maps| maps, mapproj|
+|  Picking chart colours| colourpicker (addin)|
+|  Setting ggplot themes| ggthemeassist (addin)|
