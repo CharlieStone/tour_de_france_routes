@@ -216,12 +216,32 @@ ggplot(aes(elev_change, end_elev)) +
 
 # PLOT ELEVATION OF TOURS
 ```{r plot_elevation}
-tour_all_loc %>%
-  filter(year <= 1980, year > 1960) %>%
-  ggplot(aes(section_number, elev)) +
+tour_elevation <- tour_all_loc %>%
+  group_by(year) %>%
+  mutate(tour_section_progress = section_number / max(section_number)) %>%
+  ungroup() %>%
+  ggplot(aes(tour_section_progress, elev)) +
   geom_line() +
   theme(panel.background = element_rect(fill = "white")) +
-  facet_wrap(~year)
+  facet_wrap( ~ year, ncol = 10) +
+  theme(
+    plot.title = element_text(
+      size = 50,
+      face = "bold",
+      hjust = 0.5,
+      margin = margin(t = 10, b = 40, unit = "pt")
+    ),
+    strip.text = element_text(size = 25, face = "bold"),
+    axis.text.y = element_text(size = 25),
+    axis.title.y = element_text(size = 40),
+    axis.title.x = element_text(size = 40),
+    axis.text.x = element_text(size = 0),
+    # strip.background = element_rect(fill = "#FEED00"),
+    axis.ticks.x = element_blank(), 
+   ) +
+  labs(title = "L'altitude des Tours de France", x = "Tour % progress by stage", y = "L'altitude (metres)")
+
+ggsave("tour_elevation.pdf", tour_elevation, width = 1000, height = 1485, units = "mm", limitsize = FALSE)
 ```
 
 
