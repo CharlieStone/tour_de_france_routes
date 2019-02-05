@@ -3,7 +3,7 @@ This project is on the routes of the Tour De France for all years from 1903 to 2
 
 Maps of the routes are in the file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf). 
 
-A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each Tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf).
+A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each Tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf). The colour shows the mountain range.
 
 A chart of the distance cycled (y axis) in each stage (x axis) of each Tour (chart), and total Tour distance (colour) is here.
 [tour_distance.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_distance.pdf).
@@ -40,7 +40,7 @@ There are two stages where the difference is more than 40km (out of 2437 stages 
 ## Plots
 The file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf) contains a plot of every start and end location of the Tour. The colour of the route is green at the start and black at the end. Dotted lines connect the end of one stage and the start of the next. This is particularly relevant for more recent years where the Tour has not been a continuous route.
 
-A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf).
+A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf). The colour shows the mountain range.
 
 A chart of the distance cycled (y axis) in each stage (x axis) of each Tour (chart), and total Tour distance (colour) is here.
 [tour_distance.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_distance.pdf).
