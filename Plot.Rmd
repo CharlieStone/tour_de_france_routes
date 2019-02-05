@@ -12,9 +12,9 @@ library(tidyverse)
 library(rvest)
 library(maps)
 library(mapproj)
+library(countrycode)
 library(plotly)
 library(lubridate)
-library(ggflags)
 ```
 
 Import data.
@@ -212,6 +212,43 @@ ggplot(aes(elev_change, end_elev)) +
   scale_colour_manual(values=c("#008B00", "#FFD700","#0000EE", "#CD0000", "#000000","#9400D3", "#00B2EE")) + 
   theme(panel.background = element_rect(fill = "white")) +
   facet_wrap(~terrain_group)
+```
+
+# PLOT TOUR WINNERS
+```{r plot_stage_winners}
+winner_plot <- tour_data %>%
+  filter(terrain_group != "Rest day", year != 2019) %>%
+  mutate(winner_name_short = if_else(is.na(winner_country), winner_name, str_replace(winner_name, "^[A-Z].* ", "")),
+         winner_label = paste0(winner_name_short, if_else(is.na(winner_country), "",  paste0(" (", winner_country, ")")))) %>%
+  ggplot(aes(section_number, distance_km, label = winner_label)) +
+  geom_text(hjust = -0.05,
+            nudge_x = 0,
+            angle = 90) +
+  geom_bar(stat = "identity", aes(fill = terrain_group)) +
+    theme(panel.background = element_rect(fill = "white")) +
+    facet_wrap( ~ year, ncol = 6) +
+  ylim(0, 900) +
+  scale_fill_manual(values=c("#008B00", "#0A5CF5", "#FFD700", "#CD0000", "#000000","#9400D3", "#0000EE")) +
+  theme(
+    plot.title = element_text(
+      size = 50,
+      face = "bold",
+      hjust = 0.5,
+      margin = margin(t = 10, b = 40, unit = "pt")
+    ),
+    strip.text = element_text(size = 25, face = "bold", colour = "black"),
+    axis.text.y = element_text(size = 25),
+    axis.title.y = element_text(size = 40),
+    axis.title.x = element_text(size = 40),
+    axis.text.x = element_text(size = 0),
+    legend.title = element_text(size = 40), 
+    legend.text = element_text(size = 35),
+    strip.background = element_rect(fill = "white"),
+    axis.ticks.x = element_blank(), 
+   ) +
+  labs(title = "Stage winners of the Tour de France", x = "Stage", y = "Distance cycled (km)", fill = "Stage type")
+
+ggsave("stage_winners.pdf", winner_plot, width = 1000, height = 1485, units = "mm", limitsize = FALSE)
 ```
 
 # PLOT ELEVATION OF TOURS
