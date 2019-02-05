@@ -215,15 +215,45 @@ ggplot(aes(elev_change, end_elev)) +
 ```
 
 # PLOT ELEVATION OF TOURS
+Categorise locations as being in Alps, Pyrenees or other.
+```{r mount_range}
+# Assign location to Alps or Pyrenees based on rectangular box with GPS coordinates as cartesian.
+tour_all_loc <- tour_all_loc %>%
+  mutate(mountain_range = case_when(
+    lat > 43.28 & lat < 47.38 & long > 5.24 & long < 7.60 ~ "Alps",
+    lat > 41.98 & lat < 43.11 & long > -1.69 & long < 2.78 ~ "Pyrenees",
+    lat > 44.93 & lat < 45.92 & long > 2.41 & long < 3.08 ~ "Massif Central",
+    TRUE ~ "Other"
+  ))
+
+# Plot locations and colour by mountain_range to check worked.
+borders_france <- map_data(map = "world", region = "France")
+
+cols = c("Pyrenees" = "green", "Massif Central" = "red", "Alps" = "blue", "Other" = "black")
+
+mount_plot <- ggplot() +
+  geom_polygon(data = borders_france, aes(x = long, y = lat, group = group), fill = "#FEED00", colour = "#FDFEFE") +
+  coord_map() +
+  theme_void() +
+  geom_point(data = tour_all_loc, aes(long, lat, colour = mountain_range)) +
+  scale_color_manual(values = cols)
+
+mount_plot
+```
+
+
 ```{r plot_elevation}
 tour_elevation <- tour_all_loc %>%
   group_by(year) %>%
-  mutate(tour_section_progress = section_number / max(section_number)) %>%
+  mutate(tour_section_progress = section_number / max(section_number),
+         end_x = lead(tour_section_progress),
+         end_y = lead(elev)) %>%
   ungroup() %>%
-  ggplot(aes(tour_section_progress, elev)) +
-  geom_line() +
+  ggplot() +
+  geom_segment(aes(x = tour_section_progress, y = elev, xend = end_x, yend = end_y, colour = mountain_range), size = 2) +
   theme(panel.background = element_rect(fill = "white")) +
   facet_wrap( ~ year, ncol = 10) +
+  scale_color_manual(values = cols, breaks = c("Alps", "Pyrenees", "Massif Central", "Other")) +
   theme(
     plot.title = element_text(
       size = 50,
@@ -236,10 +266,12 @@ tour_elevation <- tour_all_loc %>%
     axis.title.y = element_text(size = 40),
     axis.title.x = element_text(size = 40),
     axis.text.x = element_text(size = 0),
+    legend.title = element_text(size = 40), 
+    legend.text = element_text(size = 35),
     # strip.background = element_rect(fill = "#FEED00"),
     axis.ticks.x = element_blank(), 
    ) +
-  labs(title = "L'altitude des Tours de France", x = "Tour % progress by stage", y = "L'altitude (metres)")
+  labs(title = "L'altitude des Tours de France", x = "Tour % progress by stage", y = "L'altitude (metres)", colour = "Mountain range")
 
 ggsave("tour_elevation.pdf", tour_elevation, width = 1000, height = 1485, units = "mm", limitsize = FALSE)
 ```
