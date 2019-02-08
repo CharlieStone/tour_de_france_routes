@@ -1,0 +1,11 @@
+"0","dupl_dates <- tour_data %>%
+  filter(sub_stage != ""a"", sub_stage != ""b"", sub_stage != ""c"") %>%
+  group_by(date) %>%
+  summarise(n_date = n()) %>%
+  filter(n_date > 1)
+
+tour_data %>%
+  semi_join(dupl_dates)
+"
+"2","Joining, by = ""date""
+"

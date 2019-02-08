@@ -1,0 +1,44 @@
+"0","tour_data <- read_csv(""data/tour_data.csv"")"
+"2","Parsed with column specification:
+cols(
+  .default = col_character(),
+  date = [34mcol_date(format = """")[39m,
+  stage_number = [32mcol_double()[39m,
+  start_lat = [32mcol_double()[39m,
+  start_long = [32mcol_double()[39m,
+  start_elev = [32mcol_double()[39m,
+  end_lat = [32mcol_double()[39m,
+  end_long = [32mcol_double()[39m,
+  end_elev = [32mcol_double()[39m,
+  distance_km = [32mcol_double()[39m,
+  distance_crow_km = [32mcol_double()[39m
+)
+"
+"2","See spec(...) for full column specifications.
+"
+"0","spec(tour_data)"
+"1","cols(
+  stage_id = [31mcol_character()[39m,
+  date = [34mcol_date(format = """")[39m,
+  stage_number = [32mcol_double()[39m,
+  sub_stage = [31mcol_character()[39m,
+  start_place = [31mcol_character()[39m,
+  start_country = [31mcol_character()[39m,
+  start_lat = [32mcol_double()[39m,
+  start_long = [32mcol_double()[39m,
+  start_gnid = [31mcol_character()[39m,
+  start_elev = [32mcol_double()[39m,
+  end_place = [31mcol_character()[39m,
+  end_country = [31mcol_character()[39m,
+  end_lat = [32mcol_double()[39m,
+  end_long = [32mcol_double()[39m,
+  end_gnid = [31mcol_character()[39m,
+  end_elev = [32mcol_double()[39m,
+  distance_km = [32mcol_double()[39m,
+  distance_crow_km = [32mcol_double()[39m,
+  terrain = [31mcol_character()[39m,
+  terrain_group = [31mcol_character()[39m,
+  winner_name = [31mcol_character()[39m,
+  winner_country = [31mcol_character()[39m
+)
+"

@@ -1,0 +1,5 @@
+"0","tour_data <- tour_data %>%
+  rename(dist_end = ""distance_crow_km"")
+"
+"2","Error: Unknown column `distance_crow_km` 
+"
