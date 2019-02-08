@@ -405,12 +405,6 @@ tour_subset_not_cyc <- tour_not_cyc_stage %>%
   filter(terrain_group != "Rest day") %>%
   filter(year >= year_start & year <= year_end)
 
-# Calculate mean stage number for midpoint of colour gradient
-mean_stage <- tour_subset_stage %>%
-  summarise(mean_stage = mean(stage_number))
-
-mean_stage <- mean_stage[[1, 1]]
-
 # Plot route for this year(s)
 tours_plot <- borders_plot +
   # Plot start and end locations of tour
