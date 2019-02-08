@@ -1,9 +1,9 @@
 # Tour de France routes
 This project is on the routes of the Tour De France for all years from 1903 to 2019. 
 
-![](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes_10_fps.gif) ![](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elev.gif)
+![](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes_10_fps.gif) 
 
-The data [(tour_data.csv)](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) used to create these gifs has GPS coordinates for each start and end locations for each stage of the tour along with further details for each stage.
+The data [(tour_data.csv)](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) used to create these gif has GPS coordinates for each start and end locations for each stage of the tour along with further details for each stage.
 
 A static pdf of the routes are in the file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf). 
 
@@ -20,6 +20,8 @@ The type of stage for each Tour is plotted here [tour_stage_type.pdf](https://gi
 The data on the routes was scraped from Wikipedia. The start and end locations GPS coordinates were obtained from the place names using geonames. The code to do the scraping and cleaning is here [scrape_wiki_tours.Rmd](tour_de_france_routes/scrape_wiki_tours.Rmd).
 
 We initially scraped data from the Tour de France [website](https://www.letour.fr/en/history). However, there were errors in the data (eg frequent mispellings of stage names and dates missing for stages on earlier years), and we found much fewer errors in the Wikipedia data. In addition, the Tour de France data does not give the country for each place name which makes geocoding more difficult (due to places with the same name in different countries), and the Wikipedia data has information on the terrain types for each year which is not available on the Tour de France website.
+
+![](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elev.gif)
 
 ## Data
 #### Description
