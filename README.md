@@ -77,5 +77,6 @@ Data was scraped from the stage table from the Wikipedia article for each year o
 |  Calculating distances from GPS| geosphere|
 |  Plotting| ggplot2, plotly|
 |  Plotting maps| maps, mapproj|
+|  Producing images and animating| magick|
 |  Picking chart colours| colourpicker (addin)|
 |  Setting ggplot themes| ggthemeassist (addin)|
