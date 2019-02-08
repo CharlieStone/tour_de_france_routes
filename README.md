@@ -1,9 +1,11 @@
 # Tour de France routes
-This project is on the routes of the Tour De France for all years from 1903 to 2019. The data [(tour_data.csv)](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) has GPS coordinates for each start and end locations for each stage of the tour along with further details for each stage.
+This project is on the routes of the Tour De France for all years from 1903 to 2019. 
 
-![](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes_10_fps.gif)
+![](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes_10_fps.gif) ![](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elev.gif)
 
-Maps of the routes are in the file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf). 
+The data [(tour_data.csv)](https://github.com/CharlieStone/tour_de_france_routes/blob/master/data/tour_data.csv) used to create these gifs has GPS coordinates for each start and end locations for each stage of the tour along with further details for each stage.
+
+A static pdf of the routes are in the file [tour_routes.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_routes.pdf). 
 
 A chart of the elevation (y axis) of the start and end locations of each stage (x axis) of each Tour (chart) is here [tour_elevation.pdf](https://github.com/CharlieStone/tour_de_france_routes/blob/master/tour_elevation.pdf). The colour shows the mountain range.
 
