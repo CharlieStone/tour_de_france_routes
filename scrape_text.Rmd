@@ -9,6 +9,9 @@ Load libraries
 library(rvest)
 library(tidyverse)
 library(tidytext)
+library(widyr)
+library(igraph)
+library(ggraph)
 ```
 
 # SCRAPE TEXT FROM URL FOR EACH ARTICLE
@@ -22,7 +25,7 @@ urls <- years %>%
 
 data_init <- tibble(year = years, url_path = urls)
 
-data_init[1:20]
+data_init[1:20,]
 ```
 
 Function for scraping text from wikipage.
@@ -36,63 +39,17 @@ get_text <- function(url){
 }
 ```
 
-Scrape text for every year and put in tidytext format (one row per word)
+Scrape text for every year and put in tidytext format (one row per word). Save .csv to data folder so don't need to keep repeating scraping.
 ```{r scrape}
-text_data <- data_init %>%
+text_raw <- data_init %>%
   mutate(text = purrr::map(url_path, possibly(get_text, "no data"))) %>%
   filter(text != "no data") %>%
   mutate(text = purrr::map(text, ~tibble(text = .x))) %>%
   select(year, text) %>%
   unnest() %>%
   mutate(text = str_remove_all(text, regex("\\[\\d+\\]")),
-         text = str_remove_all(text, regex("\\n"))) %>%
-  unnest_tokens(word, text, token = "words")
+         text = str_remove_all(text, regex("\\n"))) 
 
-text_data[1:10,]
+write_csv(text_raw, "data/text_raw.csv")
 ```
 
-Find frequency of words excluding stop words
-```{r word_freq}
-text_data <- text_data %>%
-  anti_join(stop_words) 
-
-text_data %>%
-  count(word, sort = TRUE) %>%
-  filter(n > 500) %>%
-  mutate(word = reorder(word, n)) %>%
-  ggplot(aes(word, n)) +
-  geom_col() +
-  xlab(NULL) +
-  coord_flip()
-```
-
-Assign each year to a decade to make it easier to compare sets of years.
-```{r add_decade}
-text_data <- text_data %>%
-  mutate(decade = (year %/% 10) * 10)
-```
-
-Find words with the highest tf_idf for each decade.
-
-```{r decade_tfidf}
-
-```
-
-
-
-
-
-
-
-
-
-
-# SCRAPING TABLES
-Code for scraping all wikitables on page.
-```{r get_tables}
-xml <- data_init$url_path[[1]] %>%
-  read_html() %>%
-  html_node("#mw-content-text > div") %>%
-  html_nodes("table.wikitable") %>%
-  html_table()
-```
