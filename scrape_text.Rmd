@@ -1,0 +1,98 @@
+---
+title: "Scraping Wikipedia articles for each year of the Tour de France"
+output: html_notebook
+---
+
+# SETUP
+Load libraries
+```{r setup}
+library(rvest)
+library(tidyverse)
+library(tidytext)
+```
+
+# SCRAPE TEXT FROM URL FOR EACH ARTICLE
+Tibble with row = article, col = URL for article.
+```{r url_list}
+years <- seq(1903, 2019, 1)
+url_base <- "https://en.wikipedia.org/wiki/"
+url_end <- "_Tour_de_France"
+urls <- years %>%
+  paste0(url_base, . , url_end)
+
+data_init <- tibble(year = years, url_path = urls)
+
+data_init[1:20]
+```
+
+Function for scraping text from wikipage.
+```{r get_text}
+get_text <- function(url){
+  text <- url %>%
+    read_html() %>%
+    html_node("#mw-content-text > div") %>%
+    html_nodes("p") %>% 
+    html_text()
+}
+```
+
+Scrape text for every year and put in tidytext format (one row per word)
+```{r scrape}
+text_data <- data_init %>%
+  mutate(text = purrr::map(url_path, possibly(get_text, "no data"))) %>%
+  filter(text != "no data") %>%
+  mutate(text = purrr::map(text, ~tibble(text = .x))) %>%
+  select(year, text) %>%
+  unnest() %>%
+  mutate(text = str_remove_all(text, regex("\\[\\d+\\]")),
+         text = str_remove_all(text, regex("\\n"))) %>%
+  unnest_tokens(word, text, token = "words")
+
+text_data[1:10,]
+```
+
+Find frequency of words excluding stop words
+```{r word_freq}
+text_data <- text_data %>%
+  anti_join(stop_words) 
+
+text_data %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 500) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
+```
+
+Assign each year to a decade to make it easier to compare sets of years.
+```{r add_decade}
+text_data <- text_data %>%
+  mutate(decade = (year %/% 10) * 10)
+```
+
+Find words with the highest tf_idf for each decade.
+
+```{r decade_tfidf}
+
+```
+
+
+
+
+
+
+
+
+
+
+# SCRAPING TABLES
+Code for scraping all wikitables on page.
+```{r get_tables}
+xml <- data_init$url_path[[1]] %>%
+  read_html() %>%
+  html_node("#mw-content-text > div") %>%
+  html_nodes("table.wikitable") %>%
+  html_table()
+```
